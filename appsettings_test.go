@@ -12,21 +12,21 @@ func TestAppSettings(t *testing.T) {
 	var settings struct {
 		Global struct {
 			Log struct {
-				Level string `json:"msg-level" envconfig:"optional"`
+				Level string `json:"msg-level"`
 			}
 		}
 		Cors struct {
-			Origins []string `envconfig:"optional"`
+			Origins []string
 		}
 		Custom struct {
 			Service struct {
-				Name string `envconfig:"optional"`
+				Name string
 			}
-			Enabled bool `envconfig:"optional"`
+			Enabled bool
 		}
 		Google struct {
 			App struct {
-				Credentials string
+				Credentials string `validate:"nonzero"`
 			}
 		}
 	}
@@ -99,9 +99,9 @@ func TestAppSettings(t *testing.T) {
 	// LOG_MINFILTER is optional, so it should not cause an error.
 	err = appsettings.ReadSettingsFromFileAndEnv(&settings)
 	assert.NotNil(t, err)
-	assert.ErrorContains(t, err, "update settings with env vars")
-	assert.ErrorContains(t, err, "GOOGLE_APP_CREDENTIALS")
-	assert.NotContains(t, err.Error(), "GLOBAL_LOG_LEVEL")
+	assert.ErrorContains(t, err, "validate settings")
+	assert.ErrorContains(t, err, "Google.App.Credentials")
+	assert.NotContains(t, err.Error(), "Global.Log.Level")
 
 	if err := os.Setenv("GOOGLE_APP_CREDENTIALS", "something"); err != nil {
 		t.Errorf("Failed to write GOOGLE_APP_CREDENTIALS: %v", err)
@@ -114,5 +114,4 @@ func TestAppSettings(t *testing.T) {
 	assert.Equal(t, []string{"*"}, settings.Cors.Origins)
 	assert.False(t, settings.Custom.Enabled)
 	assert.Equal(t, "something", settings.Google.App.Credentials)
-
 }

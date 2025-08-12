@@ -8,13 +8,13 @@ go-appsettings is a library that supports the use of application settings simila
 
 The file `appsettings.json` contains the default values of the application settings. These are loaded first.
 
-After loading the app settings stored in the JSON file, the `AppSettings` struct is used to collect any settings from environment variables. You can use the `envconfig:"optional"` tag to indicate any setting that is not mandatory or not an environment variable at all.
+After loading the app settings stored in the JSON file, the `AppSettings` struct is used to collect any settings from environment variables. 
 
 The json parameter names are resolved using the dot notation. For example, `Global{Log{Level}}` will be resolved to `Global.Log.Level` or `global.log.level`, following Go's JSON unmarshaling implemetation. In case you want to use different JSON names, you can override them using the `json` tag. For example `json:"msg-level"` will allow you to use the JSON parameter `msg-level`.
 
 The environment variable names are resolved using uppercase names and using underscores for nesting. For example, `Global{Log{Level}}` will be resolved to `GLOBAL_LOG_LEVEL`.
 
-By default any settings in `appsettings.json` are optional.
+By default any settings in `appsettings.json` are optional. You can use validation tags that are defined by [Package validator](https://github.com/go-validator/validator). For example, you can use the `validate:"nonzero"` tag to indicate any setting that is mandatory. Validations are executed after the environment variables are merged. If a field is mandatory, using the `validate:"nonzero"` means that if the setting does not have a value in the JSON file, it needs to be set by an environment variable.
 
 ## Example
 
@@ -25,21 +25,21 @@ package main
 type AppSettings struct {
 	Global struct {
 		Log struct {
-			Level string `json:"msg-level" envconfig:"optional"`
+			Level string `json:"msg-level"`
 		}
 	}
 	Cors struct {
-		Origins []string `envconfig:"optional"`
+		Origins []string
 	}
 	Custom struct {
 		Service struct {
-			Name string `envconfig:"optional"`
+			Name string
 		}
-		Enabled bool `envconfig:"optional"`
+		Enabled bool
 	}
 	Google struct {
 		Application struct {
-			Credentials string
+			Credentials string `validate:"nonzero"`
 		}
 	}
 }
@@ -83,4 +83,4 @@ func main() {
 }
 ```
 
-Note that this example will fail if the environment variable `GOOGLE_APPLICATION_CREDENTIALS` is missing. You can resolve this by either removing the `Google` struct in case you're not using it, or by tagging the `Credentials` field with `envconfig:"optional"` like the other fields.
+Note that this example will fail if the environment variable `GOOGLE_APPLICATION_CREDENTIALS` is missing. You can resolve this by either removing the `Google` struct in case you're not using it, or by removing the `validate:"nonzero"` tag from the `Credentials` field.
