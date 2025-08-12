@@ -8,23 +8,23 @@ The file `appsettings.json` contains the default values of the application setti
 
 After loading the app settings stored in the JSON file, the `AppSettings` struct is used to collect any settings from environment variables. You can use the `envconfig:"optional"` tag to indicate any setting that is not mandatory or not an environment variable at all.
 
-The json parameter names are resolved using the dot notation. For example, `Log{MinFilter}` will be resolved to `Log.MinFilter` or `log.minFilter`, following Go's JSON unmarshaling implemetation. In case you want to use different JSON names, you can override them using the `json` tag. For example `json:"min-filter"` will allow you to use the JSON parameter `min-filter`.
+The json parameter names are resolved using the dot notation. For example, `Global{Log{Level}}` will be resolved to `Global.Log.Level` or `global.log.level`, following Go's JSON unmarshaling implemetation. In case you want to use different JSON names, you can override them using the `json` tag. For example `json:"msg-level"` will allow you to use the JSON parameter `msg-level`.
 
-The environment variable names are resolved using uppercase names and using underscores for nesting. For example, `Log{MinFilter}` will be resolved to `LOG_MINFILTER`.
+The environment variable names are resolved using uppercase names and using underscores for nesting. For example, `Global{Log{Level}}` will be resolved to `GLOBAL_LOG_LEVEL`.
 
-By default any settings in appsettings.json are optional.
+By default any settings in `appsettings.json` are optional.
 
 ## Example
-
-Although it's recommended to create both 
 
 `appsettings.go`
 ```go
 package main
 
 type AppSettings struct {
-	Log struct {
-		MinFilter string `json:"min-filter" envconfig:"optional"`
+	Global struct {
+		Log struct {
+			Level string `json:"msg-level" envconfig:"optional"`
+		}
 	}
 	Cors struct {
 		Origins []string `envconfig:"optional"`
@@ -46,8 +46,10 @@ type AppSettings struct {
 `appsettings.json`
 ```json
 {
-  "log": {
-    "min-filter": "Debug"
+  "global": {
+    "log": {
+      "msg-level": "Debug"
+    }
   },
   "cors": {
     "origins": ["*"]
