@@ -1,5 +1,7 @@
 # go-appsettings
 
+[![Go](https://github.com/Prutswonder/go-appsettings/actions/workflows/go.yml/badge.svg)](https://github.com/Prutswonder/go-appsettings/actions/workflows/go.yml)
+
 go-appsettings is a library that supports the use of application settings similar to .Net. It uses [envconfig](https://github.com/vrischmann/envconfig) to override JSON settings with environment variables.
 
 ## How it works
