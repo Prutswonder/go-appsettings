@@ -10,9 +10,13 @@ import (
 	"github.com/vrischmann/envconfig"
 )
 
+type Validator interface {
+	Validate(settings any) error
+}
+
 // ReadSettingsFromFileAndEnv reads the settings from a local file and overrides them with
 // environment variables.
-func ReadSettingsFromFileAndEnv(settings any) (err error) {
+func ReadSettingsFromFileAndEnv(settings any, validator Validator) error {
 	// Step 1: Read settings from file
 	if file, err := os.Open("appsettings.json"); err != nil {
 		return errors.Join(fmt.Errorf("failed to open appsettings file"), err)
@@ -34,9 +38,16 @@ func ReadSettingsFromFileAndEnv(settings any) (err error) {
 	}
 
 	// Step 2: Override with environment variables
-	err = envconfig.Init(settings)
-	if err != nil {
-		err = errors.Join(fmt.Errorf("failed to update settings with env vars"), err)
+	if err := envconfig.InitWithOptions(settings, envconfig.Options{AllOptional: true}); err != nil {
+		return errors.Join(fmt.Errorf("failed to update settings with env vars"), err)
 	}
-	return err
+
+	//Step 3: Validate settings in case a validator is provided
+	if validator == nil {
+		return nil
+	}
+	if errs := validator.Validate(settings); errs != nil {
+		return errors.Join(fmt.Errorf("failed to validate settings"), errs)
+	}
+	return nil
 }
