@@ -2,7 +2,7 @@
 
 [![Go](https://github.com/Prutswonder/go-appsettings/actions/workflows/go.yml/badge.svg)](https://github.com/Prutswonder/go-appsettings/actions/workflows/go.yml)
 
-go-appsettings is a library that supports the use of application settings similar to .Net. It uses [envconfig](https://github.com/vrischmann/envconfig) to override JSON settings with environment variables.
+go-appsettings is a library that supports the use of application settings similar to .Net. It uses [envconfig](https://github.com/vrischmann/envconfig) to override JSON settings with environment variables and [Package validator](https://github.com/go-validator/validator) for validations.
 
 ## How it works
 
@@ -14,7 +14,11 @@ The json parameter names are resolved using the dot notation. For example, `Glob
 
 The environment variable names are resolved using uppercase names and using underscores for nesting. For example, `Global{Log{Level}}` will be resolved to `GLOBAL_LOG_LEVEL`.
 
-By default any settings in `appsettings.json` are optional. You can use validation tags that are defined by [Package validator](https://github.com/go-validator/validator). For example, you can use the `validate:"nonzero"` tag to indicate any setting that is mandatory. Validations are executed after the environment variables are merged. If a field is mandatory, using the `validate:"nonzero"` means that if the setting does not have a value in the JSON file, it needs to be set by an environment variable.
+## Validation
+
+By default any settings in `appsettings.json` are optional. You can use validation tags that are defined by Package Validator ([see documentation](https://pkg.go.dev/gopkg.in/validator.v2)). For example, you can use the `validate:"nonzero"` tag to indicate any setting that is mandatory. Validations are executed after the environment variables are merged. 
+
+If a field is mandatory, using the `validate:"nonzero"` means that if the setting does not have a value in the JSON file, it needs to be set by an environment variable. 
 
 ## Example
 
