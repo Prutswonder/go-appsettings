@@ -1,6 +1,8 @@
 package appsettings_test
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -8,31 +10,44 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAppSettings(t *testing.T) {
-	var settings struct {
-		Global struct {
-			Log struct {
-				Level string `json:"msg-level"`
-			}
-		}
-		Cors struct {
-			Origins []string
-		}
-		Custom struct {
-			Service struct {
-				Name string
-			}
-			Enabled bool
-		}
-		Google struct {
-			App struct {
-				Credentials string `validate:"nonzero"`
-			}
+type TestSettings struct {
+	Global struct {
+		Log struct {
+			Level string `json:"msg-level"`
 		}
 	}
+	Cors struct {
+		Origins []string
+	}
+	Custom struct {
+		Service struct {
+			Name string
+		}
+		Enabled bool
+	}
+	Google struct {
+		App struct {
+			Credentials string
+		}
+	}
+}
+
+func (s *TestSettings) Validate(settings any) error {
+	errs := error(nil)
+	if s.Global.Log.Level == "" {
+		errs = errors.Join(errs, fmt.Errorf("Global.Log.Level is required"))
+	}
+	if s.Google.App.Credentials == "" {
+		errs = errors.Join(errs, fmt.Errorf("Google.App.Credentials is required"))
+	}
+	return errs
+}
+
+func TestAppSettings(t *testing.T) {
+	settings := &TestSettings{}
 
 	// By default this repository does not have an appsettings.json file, so this should fail.
-	err := appsettings.ReadSettingsFromFileAndEnv(&settings)
+	err := appsettings.ReadSettingsFromFileAndEnv(settings, nil)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, "open appsettings file")
 	assert.ErrorContains(t, err, "open appsettings.json")
@@ -56,7 +71,7 @@ func TestAppSettings(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Although appsettings.json exists now, it is not valid JSON, so this should fail.
-	err = appsettings.ReadSettingsFromFileAndEnv(&settings)
+	err = appsettings.ReadSettingsFromFileAndEnv(settings, nil)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, "unmarshal appsettings file")
 
@@ -95,9 +110,13 @@ func TestAppSettings(t *testing.T) {
 		t.Errorf("Failed to write GOOGLE_APP_CREDENTIALS: %v", err)
 	}
 
-	// Now that appsettings.json exists, this should fail because GOOGLE_APP_CREDENTIALS is not set.
+	// Now that appsettings.json exists, this should succeed without validation.
+	err = appsettings.ReadSettingsFromFileAndEnv(settings, nil)
+	assert.NoError(t, err)
+
+	// With validation, this should fail because GOOGLE_APP_CREDENTIALS is not set.
 	// LOG_MINFILTER is optional, so it should not cause an error.
-	err = appsettings.ReadSettingsFromFileAndEnv(&settings)
+	err = appsettings.ReadSettingsFromFileAndEnv(settings, settings)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, "validate settings")
 	assert.ErrorContains(t, err, "Google.App.Credentials")
@@ -108,7 +127,7 @@ func TestAppSettings(t *testing.T) {
 	}
 
 	// Now that appsettings.json and GOOGLE_APP_CREDENTIALS exist, this should succeed.
-	err = appsettings.ReadSettingsFromFileAndEnv(&settings)
+	err = appsettings.ReadSettingsFromFileAndEnv(settings, settings)
 	assert.NoError(t, err)
 	assert.Equal(t, "Debug", settings.Global.Log.Level)
 	assert.Equal(t, []string{"*"}, settings.Cors.Origins)
