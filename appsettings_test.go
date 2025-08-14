@@ -3,6 +3,7 @@ package appsettings_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -43,18 +44,84 @@ func (s *TestSettings) Validate(settings any) error {
 	return errs
 }
 
+type TestReader struct {
+	HasReadError  bool
+	HasCloseError bool
+}
+
+func (r *TestReader) Read(p []byte) (n int, err error) {
+	if r.HasReadError {
+		return 0, errors.New("read error")
+	}
+	return 0, io.EOF
+}
+func (r *TestReader) Close() error {
+	if r.HasCloseError {
+		return errors.New("close error")
+	}
+	return nil
+}
+
+type TestUpdater struct {
+	LogLevel          string
+	GoogleCredentials string
+	UpdateError       error
+}
+
+func (u *TestUpdater) Update(settings any) error {
+	s, _ := settings.(*TestSettings)
+
+	if u.LogLevel != "" {
+		s.Global.Log.Level = u.LogLevel
+	}
+	if u.GoogleCredentials != "" {
+		s.Google.App.Credentials = u.GoogleCredentials
+	}
+	return u.UpdateError
+}
+
 func TestAppSettings(t *testing.T) {
 	settings := &TestSettings{}
 
-	// By default this repository does not have an appsettings.json file, so this should fail.
-	err := appsettings.ReadSettingsFromFileAndEnv(settings, nil)
+	// A nil AppSettings instance is not allowed.
+	sut := (*appsettings.AppSettings)(nil)
+	err := sut.Read(settings)
 	assert.NotNil(t, err)
-	assert.ErrorContains(t, err, "open appsettings file")
-	assert.ErrorContains(t, err, "open appsettings.json")
+	assert.ErrorContains(t, err, appsettings.ErrAppSettingsNil.Error())
 
-	// Save the current environment variables to restore later, just in case they are set.
-	logMinFilter := os.Getenv("GLOBAL_LOG_LEVEL")
-	credentials := os.Getenv("GOOGLE_APP_CREDENTIALS")
+	// A nil reader is not allowed.
+	sut = &appsettings.AppSettings{}
+	err = sut.Read(settings)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, appsettings.ErrReaderNil.Error())
+
+	// Faulty reader is accepted at instantiation.
+	reader := TestReader{HasReadError: true}
+	sut, err = appsettings.NewAppSettings(&reader)
+	assert.NoError(t, err)
+
+	// Reading settings with a nil parameter should fail.
+	err = sut.Read(nil)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, appsettings.ErrSettingsParamNil.Error())
+
+	// Reading settings should fail with the faulty reader.
+	err = sut.Read(settings)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, errors.New("read error").Error())
+
+	reader = TestReader{HasCloseError: true}
+
+	// Reading settings with a reader that fails to close should fail.
+	err = sut.Read(settings)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, errors.New("close error").Error())
+
+	// By default this repository does not have an appsettings.json file, so this should fail.
+	_, err = appsettings.NewAppSettings(nil)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, appsettings.ErrOpeningFile.Error())
+	assert.ErrorContains(t, err, "open appsettings.json")
 
 	// Create a faulty appsettings.json file.
 	notJsonContent := `{
@@ -70,10 +137,15 @@ func TestAppSettings(t *testing.T) {
 	err = os.WriteFile("appsettings.json", []byte(notJsonContent), 0644)
 	assert.NoError(t, err)
 
+	// Instantiating AppSettings should succeed, even with a faulty appsettings.json.
+	sut, err = appsettings.NewAppSettings(nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, sut)
+
 	// Although appsettings.json exists now, it is not valid JSON, so this should fail.
-	err = appsettings.ReadSettingsFromFileAndEnv(settings, nil)
+	err = sut.Read(settings)
 	assert.NotNil(t, err)
-	assert.ErrorContains(t, err, "unmarshal appsettings file")
+	assert.ErrorContains(t, err, appsettings.ErrUnmarshalingFile.Error())
 
 	// Create an appsettings.json file with some default values.
 	jsonContent := `{
@@ -94,43 +166,47 @@ func TestAppSettings(t *testing.T) {
 		if err = os.Remove("appsettings.json"); err != nil {
 			t.Errorf("Failed to remove appsettings.json: %v", err)
 		}
-		if err := os.Setenv("GLOBAL_LOG_LEVEL", logMinFilter); err != nil {
-			t.Errorf("Failed to restore GLOBAL_LOG_LEVEL: %v", err)
-		}
-		if err := os.Setenv("GOOGLE_APP_CREDENTIALS", credentials); err != nil {
-			t.Errorf("Failed to restore GOOGLE_APP_CREDENTIALS: %v", err)
-		}
 	}()
 
-	// Clear the environment variables to ensure they do not interfere with the test.
-	if err := os.Setenv("GLOBAL_LOG_LEVEL", ""); err != nil {
-		t.Errorf("Failed to write GLOBAL_LOG_LEVEL: %v", err)
-	}
-	if err := os.Setenv("GOOGLE_APP_CREDENTIALS", ""); err != nil {
-		t.Errorf("Failed to write GOOGLE_APP_CREDENTIALS: %v", err)
-	}
+	updater := TestUpdater{}
+	sut, err = appsettings.NewAppSettings(nil)
+	sut = sut.WithUpdater(&updater)
 
 	// Now that appsettings.json exists, this should succeed without validation.
-	err = appsettings.ReadSettingsFromFileAndEnv(settings, nil)
+	err = sut.Read(settings)
 	assert.NoError(t, err)
 
-	// With validation, this should fail because GOOGLE_APP_CREDENTIALS is not set.
-	// LOG_MINFILTER is optional, so it should not cause an error.
-	err = appsettings.ReadSettingsFromFileAndEnv(settings, settings)
+	sut, err = appsettings.NewAppSettings(nil)
+	sut = sut.WithUpdater(&updater)
+	sut = sut.WithValidator(settings)
+
+	// With validation, this should fail because Google.App.Credentials is not set.
+	// Global.Log.Level is set in the JSON file, so it should not cause an error.
+	err = sut.Read(settings)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, "validate settings")
 	assert.ErrorContains(t, err, "Google.App.Credentials")
 	assert.NotContains(t, err.Error(), "Global.Log.Level")
 
-	if err := os.Setenv("GOOGLE_APP_CREDENTIALS", "something"); err != nil {
-		t.Errorf("Failed to write GOOGLE_APP_CREDENTIALS: %v", err)
-	}
+	updater.GoogleCredentials = "something"
+	sut, err = appsettings.NewAppSettings(nil)
+	sut = sut.WithUpdater(&updater)
 
-	// Now that appsettings.json and GOOGLE_APP_CREDENTIALS exist, this should succeed.
-	err = appsettings.ReadSettingsFromFileAndEnv(settings, settings)
+	// Now that Google.App.Credentials exists, this should succeed.
+	err = sut.Read(settings)
 	assert.NoError(t, err)
 	assert.Equal(t, "Debug", settings.Global.Log.Level)
 	assert.Equal(t, []string{"*"}, settings.Cors.Origins)
 	assert.False(t, settings.Custom.Enabled)
 	assert.Equal(t, "something", settings.Google.App.Credentials)
+
+	updater.UpdateError = errors.New("updater error")
+	sut, err = appsettings.NewAppSettings(nil)
+	sut = sut.WithUpdater(&updater)
+	sut = sut.WithValidator(settings)
+
+	// This should fail because the updater returns an error.
+	err = sut.Read(settings)
+	assert.NotNil(t, err)
+	assert.ErrorContains(t, err, "updater error")
 }
