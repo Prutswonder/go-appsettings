@@ -84,20 +84,20 @@ func TestAppSettings(t *testing.T) {
 	settings := &TestSettings{}
 
 	// A nil AppSettings instance is not allowed.
-	sut := (*appsettings.AppSettings)(nil)
+	sut := (*appsettings.Composer)(nil)
 	err := sut.Read(settings)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, appsettings.ErrAppSettingsNil.Error())
 
 	// A nil reader is not allowed.
-	sut = &appsettings.AppSettings{}
+	sut = &appsettings.Composer{}
 	err = sut.Read(settings)
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, appsettings.ErrReaderNil.Error())
 
 	// Faulty reader is accepted at instantiation.
 	reader := TestReader{HasReadError: true}
-	sut, err = appsettings.NewAppSettings(&reader)
+	sut, err = appsettings.NewComposerWithReader(&reader)
 	assert.NoError(t, err)
 
 	// Reading settings with a nil parameter should fail.
@@ -118,7 +118,7 @@ func TestAppSettings(t *testing.T) {
 	assert.ErrorContains(t, err, errors.New("close error").Error())
 
 	// By default this repository does not have an appsettings.json file, so this should fail.
-	_, err = appsettings.NewAppSettings(nil)
+	_, err = appsettings.NewComposer()
 	assert.NotNil(t, err)
 	assert.ErrorContains(t, err, appsettings.ErrOpeningFile.Error())
 	assert.ErrorContains(t, err, "open appsettings.json")
@@ -138,7 +138,7 @@ func TestAppSettings(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Instantiating AppSettings should succeed, even with a faulty appsettings.json.
-	sut, err = appsettings.NewAppSettings(nil)
+	sut, err = appsettings.NewComposer()
 	assert.NoError(t, err)
 	assert.NotNil(t, sut)
 
@@ -169,14 +169,14 @@ func TestAppSettings(t *testing.T) {
 	}()
 
 	updater := TestUpdater{}
-	sut, err = appsettings.NewAppSettings(nil)
+	sut, err = appsettings.NewComposer()
 	sut = sut.WithUpdater(&updater)
 
 	// Now that appsettings.json exists, this should succeed without validation.
 	err = sut.Read(settings)
 	assert.NoError(t, err)
 
-	sut, err = appsettings.NewAppSettings(nil)
+	sut, err = appsettings.NewComposer()
 	sut = sut.WithUpdater(&updater)
 	sut = sut.WithValidator(settings)
 
@@ -189,7 +189,7 @@ func TestAppSettings(t *testing.T) {
 	assert.NotContains(t, err.Error(), "Global.Log.Level")
 
 	updater.GoogleCredentials = "something"
-	sut, err = appsettings.NewAppSettings(nil)
+	sut, err = appsettings.NewComposer()
 	sut = sut.WithUpdater(&updater)
 
 	// Now that Google.App.Credentials exists, this should succeed.
@@ -201,7 +201,7 @@ func TestAppSettings(t *testing.T) {
 	assert.Equal(t, "something", settings.Google.App.Credentials)
 
 	updater.UpdateError = errors.New("updater error")
-	sut, err = appsettings.NewAppSettings(nil)
+	sut, err = appsettings.NewComposer()
 	sut = sut.WithUpdater(&updater)
 	sut = sut.WithValidator(settings)
 

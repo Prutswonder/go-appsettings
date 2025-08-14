@@ -18,8 +18,8 @@ type (
 		Validate(settings any) error
 	}
 
-	// AppSettings is a struct to read application settings from multiple sources and validate them if needed.
-	AppSettings struct {
+	// Composer is a struct to read application settings from multiple sources and validate them if needed.
+	Composer struct {
 		jsonReader io.ReadCloser
 		updater    EnvUpdater
 		validator  Validator
@@ -42,10 +42,16 @@ var (
 	DefaultAppSettingsFile = "appsettings.json"
 )
 
-// NewAppSettings creates a new AppSettings instance.
-// If jsonReadCloser is nil, it will try to open the default "appsettings.json" file.
-// If the file cannot be opened, it returns an error.
-func NewAppSettings(jsonReadCloser io.ReadCloser) (*AppSettings, error) {
+// NewComposer creates a new Composer instance.
+// It will use the default "appsettings.json" file reader.
+func NewComposer() (*Composer, error) {
+	return NewComposerWithReader(nil)
+}
+
+// NewComposerWithReader creates a new Composer instance.
+// If the provided jsonReadCloser is nil, it will use the default "appsettings.json" file reader.
+// If the default JSON file cannot be found or opened, it returns an error.
+func NewComposerWithReader(jsonReadCloser io.ReadCloser) (*Composer, error) {
 	if jsonReadCloser == nil {
 		if f, err := os.Open(DefaultAppSettingsFile); err != nil {
 			return nil, errors.Join(ErrOpeningFile, err)
@@ -53,7 +59,7 @@ func NewAppSettings(jsonReadCloser io.ReadCloser) (*AppSettings, error) {
 			jsonReadCloser = f
 		}
 	}
-	as := &AppSettings{
+	as := &Composer{
 		jsonReader: jsonReadCloser,
 		updater:    nil,
 		validator:  nil,
@@ -62,19 +68,19 @@ func NewAppSettings(jsonReadCloser io.ReadCloser) (*AppSettings, error) {
 }
 
 // WithUpdater sets the updater anfor the AppSettings instance.
-func (as *AppSettings) WithUpdater(updater EnvUpdater) *AppSettings {
+func (as *Composer) WithUpdater(updater EnvUpdater) *Composer {
 	as.updater = updater
 	return as
 }
 
 // WithValidator sets the validator for the AppSettings instance.
-func (as *AppSettings) WithValidator(validator Validator) *AppSettings {
+func (as *Composer) WithValidator(validator Validator) *Composer {
 	as.validator = validator
 	return as
 }
 
 // Read reads the settings from multiple sources and validates them if a validator is provided.
-func (as *AppSettings) Read(settings any) (err error) {
+func (as *Composer) Read(settings any) (err error) {
 	// Step 0: Basic validation
 	if as == nil {
 		return ErrAppSettingsNil
